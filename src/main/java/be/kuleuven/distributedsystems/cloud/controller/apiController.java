@@ -99,4 +99,14 @@ public class apiController {
 
     }
 
+    @GetMapping("/api/getSeat")
+    public ResponseEntity<Seat> getSeat(@RequestParam String trainCompany, @RequestParam String trainId, @RequestParam String seatId){
+        return client.get()
+                .uri("/trains/{trainId}/seats/{seatId}?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId, seatId)
+                .retrieve()
+                .toEntity(Seat.class)
+                .block();
+
+    }
+
 }
