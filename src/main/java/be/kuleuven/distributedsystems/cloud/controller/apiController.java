@@ -1,20 +1,23 @@
 package be.kuleuven.distributedsystems.cloud.controller;
 
 
+import be.kuleuven.distributedsystems.cloud.entities.Quote;
 import be.kuleuven.distributedsystems.cloud.entities.Seat;
 import be.kuleuven.distributedsystems.cloud.entities.Train;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.*;
 
 
 @Controller
@@ -82,7 +85,7 @@ public class apiController {
 
     //TODO: sort seats based on seat number and group them into classes
     @GetMapping("/api/getAvailableSeats")
-    public ResponseEntity<Seat[]> getAvailableSeats(@RequestParam String trainCompany, @RequestParam String trainId, @RequestParam String time){
+    public ResponseEntity<?> getAvailableSeats(@RequestParam String trainCompany, @RequestParam String trainId, @RequestParam String time){
         String resp = client.get()
                 .uri("/trains/{trainId}/seats?time={time}&available=true&key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId, time)
                 .retrieve()
@@ -92,7 +95,44 @@ public class apiController {
         try{
             JsonNode node = mapper.readTree(resp).get("_embedded").get("seats");
             Seat[] availableSeats = mapper.treeToValue(node, Seat[].class);
-            return ResponseEntity.ok(availableSeats);
+            ArrayList<Seat> firstClass = new ArrayList<>();
+            ArrayList<Seat> secondClass = new ArrayList<>();
+            for(Seat s : availableSeats){
+                if (s.getType().equals("1st class")){
+                    firstClass.add(s);
+                }else {
+                    secondClass.add(s);
+                }
+            }
+            Comparator<Seat> stringComparator = new Comparator<Seat>() {
+                @Override
+                public int compare(Seat o1, Seat o2) {
+                    String s1 = o1.getName();
+                    String s2 = o2.getName();
+                    // Extract the numeric part of the strings
+                    int num1 = Integer.parseInt(s1.replaceAll("[\\D]", ""));
+                    int num2 = Integer.parseInt(s2.replaceAll("[\\D]", ""));
+
+                    // Compare the numeric parts
+                    int numComparison = Integer.compare(num1, num2);
+
+                    // If the numeric parts are equal, compare the alphabetic part
+                    if (numComparison == 0) {
+                        String alpha1 = s1.replaceAll("[\\d]", "");
+                        String alpha2 = s2.replaceAll("[\\d]", "");
+                        return alpha1.compareTo(alpha2);
+                    }
+
+                    return numComparison;
+                }
+
+            };
+            firstClass.sort(stringComparator);
+            secondClass.sort(stringComparator);
+            Map<String, ArrayList<Seat>> body = new HashMap<>();
+            body.put("1st class:", firstClass);
+            body.put("2nd class:", secondClass);
+            return ResponseEntity.ok(body);
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
@@ -107,6 +147,11 @@ public class apiController {
                 .toEntity(Seat.class)
                 .block();
 
+    }
+
+    @PostMapping("/api/confirmQuotes")
+    public ResponseEntity<?> createBooking(@RequestBody Quote[] quotes){
+        return ResponseEntity.ok().build();
     }
 
 }
