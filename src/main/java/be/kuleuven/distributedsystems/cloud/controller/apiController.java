@@ -7,6 +7,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -178,4 +179,37 @@ public class apiController {
         return ResponseEntity.ok(bookings);
     }
 
+    @GetMapping("/api/getAllBookings")
+    public ResponseEntity<?> getAllBookings(){
+        if (SecurityFilter.getUser().isManager()){
+            return ResponseEntity.ok(bookingMap.values());
+        }else {
+            return getCustomerBookings();
+        }
+    }
+
+    @GetMapping("/api/getBestCustomers")
+    public ResponseEntity<?> getBestCustomers(){
+        if(SecurityFilter.getUser().isManager()){
+            List<String> bestUsers = null;
+            int maxTickets = -1;
+            for (Map.Entry<String, List<Booking>> entry : bookingMap.entrySet()){
+                int totalTickets = 0;
+                for(Booking booking : entry.getValue()){
+                    totalTickets = totalTickets + booking.getTickets().size();
+                }
+                if(totalTickets > maxTickets){
+                    bestUsers = new ArrayList<>();
+                    bestUsers.add(entry.getKey());
+                    maxTickets = totalTickets;
+                } else if (totalTickets == maxTickets){
+                    bestUsers.add(entry.getKey());
+                }
+            }
+            return ResponseEntity.ok(bestUsers);
+
+        }else {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+    }
 }
