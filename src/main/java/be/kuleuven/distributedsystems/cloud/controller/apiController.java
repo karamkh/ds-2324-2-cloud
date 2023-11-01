@@ -1,13 +1,11 @@
 package be.kuleuven.distributedsystems.cloud.controller;
 
 
-import be.kuleuven.distributedsystems.cloud.entities.Quote;
-import be.kuleuven.distributedsystems.cloud.entities.Seat;
-import be.kuleuven.distributedsystems.cloud.entities.Train;
+import be.kuleuven.distributedsystems.cloud.auth.SecurityFilter;
+import be.kuleuven.distributedsystems.cloud.entities.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -17,6 +15,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.awt.print.Book;
+import java.time.LocalDateTime;
 import java.util.*;
 
 
@@ -25,6 +25,7 @@ public class apiController {
     public final WebClient.Builder webClientBuilder;
     public WebClient client;
     public final ObjectMapper mapper = new ObjectMapper();
+    public Map<String, List<Booking>> bookingMap = new HashMap<>();
 
 
     @Autowired
@@ -83,7 +84,6 @@ public class apiController {
 
     }
 
-    //TODO: sort seats based on seat number and group them into classes
     @GetMapping("/api/getAvailableSeats")
     public ResponseEntity<?> getAvailableSeats(@RequestParam String trainCompany, @RequestParam String trainId, @RequestParam String time){
         String resp = client.get()
@@ -151,7 +151,31 @@ public class apiController {
 
     @PostMapping("/api/confirmQuotes")
     public ResponseEntity<?> createBooking(@RequestBody Quote[] quotes){
-        return ResponseEntity.ok().build();
+        User user  = SecurityFilter.getUser();
+        UUID bookingId = UUID.randomUUID();
+        List<Ticket> tickets = new ArrayList<>();
+        for(Quote q : quotes){
+            tickets.add(new Ticket(q.getTrainCompany(), q.getTrainId(), q.getSeatId(), UUID.randomUUID(), user.getEmail(), bookingId.toString()));
+        }
+        Booking booking = new Booking(UUID.randomUUID(), LocalDateTime.now(), tickets, user.getEmail());
+
+        if(bookingMap.get(user.getEmail()) == null){
+            List<Booking> bookings = new ArrayList<>();
+            bookings.add(booking);
+            bookingMap.put(user.getEmail(), bookings);
+        }else {
+            List<Booking> bookings = bookingMap.get(user);
+            bookings.add(booking);
+            bookingMap.put(user.getEmail(), bookings);
+        }
+
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/api/getBookings")
+    public ResponseEntity<List<Booking>> getCustomerBookings(){
+        List<Booking> bookings = bookingMap.get(SecurityFilter.getUser().getEmail());
+        return ResponseEntity.ok(bookings);
     }
 
 }
