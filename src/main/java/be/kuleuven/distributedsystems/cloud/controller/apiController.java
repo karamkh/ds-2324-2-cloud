@@ -1,6 +1,7 @@
 package be.kuleuven.distributedsystems.cloud.controller;
 
 
+import be.kuleuven.distributedsystems.cloud.TrainRepository;
 import be.kuleuven.distributedsystems.cloud.auth.SecurityFilter;
 import be.kuleuven.distributedsystems.cloud.entities.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -8,6 +9,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,41 +17,71 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
-import java.awt.print.Book;
-import java.time.LocalDateTime;
+import java.io.IOException;
 import java.util.*;
 
 
 @Controller
 public class apiController {
     public final WebClient.Builder webClientBuilder;
-    public WebClient client;
+    public WebClient reliableClient;
+    public WebClient unReliableClient;
     public final ObjectMapper mapper = new ObjectMapper();
+    public final TrainRepository reliable = new TrainRepository();
     public Map<String, List<Booking>> bookingMap = new HashMap<>();
 
 
     @Autowired
-    public apiController(WebClient.Builder webClientBuilder){
+    public apiController(WebClient.Builder webClientBuilder) throws IOException {
         this.webClientBuilder = webClientBuilder;
-        client = webClientBuilder
+        reliableClient = webClientBuilder
                 .baseUrl("https://reliabletrains.com")
                 .build();
+        unReliableClient = webClientBuilder
+                .baseUrl("https://unreliabletrains.com")
+                .build();
     }
+
+    public Train[] parseTrains(String body) throws JsonProcessingException {
+            JsonNode node = mapper.readTree(body).get("_embedded").get("trains");
+            Train[] trains = mapper.treeToValue(node, Train[].class);
+            reliable.setTrains(Arrays.stream(trains).toList());
+
+            return trains;
+    }
+
+    public static <T> T[] concatenateArrays(T[] first, T[] second) {
+        int totalLength = first.length + second.length;
+        T[] result = Arrays.copyOf(first, totalLength);
+        System.arraycopy(second, 0, result, first.length, second.length);
+        return result;
+    }
+
 
     @GetMapping("/api/getTrains")
     public ResponseEntity<Train[]> getTrains(){
 
-        String resp = client.get()
+        String resp = reliableClient.get()
                 .uri("/trains?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE")
                 .retrieve()
                 .toEntity(String.class)
                 .block().getBody();
 
-        try {
-            JsonNode node = mapper.readTree(resp).get("_embedded").get("trains");
-            Train[] trains = mapper.treeToValue(node, Train[].class);
+        String resp1 = unReliableClient.get()
+                .uri("/trains?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE")
+                .retrieve()
+                .toEntity(String.class)
+                .onErrorReturn(ResponseEntity.ok("{\"_embedded\":{\"trains\": []}}"))
+                .block()
+                .getBody();
 
+
+        try {
+            Train[] reliableTrains = parseTrains(resp);
+            Train[] unreliableTrains = parseTrains(resp1);
+            Train[] trains = concatenateArrays(reliableTrains, unreliableTrains);
             return ResponseEntity.ok(trains);
 
         } catch (JsonProcessingException e) {
@@ -60,7 +92,7 @@ public class apiController {
 
     @GetMapping("/api/getTrain")
     public ResponseEntity<Train> getTrain(@RequestParam String trainCompany, @RequestParam String trainId){
-        return client.get()
+        return reliableClient.get()
                 .uri("/trains/{trainId}?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId)
                 .retrieve()
                 .toEntity(Train.class).block();
@@ -68,7 +100,7 @@ public class apiController {
 
     @GetMapping("/api/getTrainTimes")
     public ResponseEntity<?> getTrainTimes(@RequestParam String trainCompany, @RequestParam String trainId){
-        String resp =  client.get()
+        String resp =  reliableClient.get()
                 .uri("/trains/{trainId}/times?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId)
                 .retrieve()
                 .toEntity(String.class)
@@ -87,7 +119,7 @@ public class apiController {
 
     @GetMapping("/api/getAvailableSeats")
     public ResponseEntity<?> getAvailableSeats(@RequestParam String trainCompany, @RequestParam String trainId, @RequestParam String time){
-        String resp = client.get()
+        String resp = reliableClient.get()
                 .uri("/trains/{trainId}/seats?time={time}&available=true&key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId, time)
                 .retrieve()
                 .toEntity(String.class)
@@ -96,44 +128,8 @@ public class apiController {
         try{
             JsonNode node = mapper.readTree(resp).get("_embedded").get("seats");
             Seat[] availableSeats = mapper.treeToValue(node, Seat[].class);
-            ArrayList<Seat> firstClass = new ArrayList<>();
-            ArrayList<Seat> secondClass = new ArrayList<>();
-            for(Seat s : availableSeats){
-                if (s.getType().equals("1st class")){
-                    firstClass.add(s);
-                }else {
-                    secondClass.add(s);
-                }
-            }
-            Comparator<Seat> stringComparator = new Comparator<Seat>() {
-                @Override
-                public int compare(Seat o1, Seat o2) {
-                    String s1 = o1.getName();
-                    String s2 = o2.getName();
-                    // Extract the numeric part of the strings
-                    int num1 = Integer.parseInt(s1.replaceAll("[\\D]", ""));
-                    int num2 = Integer.parseInt(s2.replaceAll("[\\D]", ""));
-
-                    // Compare the numeric parts
-                    int numComparison = Integer.compare(num1, num2);
-
-                    // If the numeric parts are equal, compare the alphabetic part
-                    if (numComparison == 0) {
-                        String alpha1 = s1.replaceAll("[\\d]", "");
-                        String alpha2 = s2.replaceAll("[\\d]", "");
-                        return alpha1.compareTo(alpha2);
-                    }
-
-                    return numComparison;
-                }
-
-            };
-            firstClass.sort(stringComparator);
-            secondClass.sort(stringComparator);
-            Map<String, ArrayList<Seat>> body = new HashMap<>();
-            body.put("1st class:", firstClass);
-            body.put("2nd class:", secondClass);
-            return ResponseEntity.ok(body);
+            reliable.setSeats(Arrays.stream(availableSeats).toList());
+            return ResponseEntity.ok(reliable.sortSeat());
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
@@ -142,7 +138,7 @@ public class apiController {
 
     @GetMapping("/api/getSeat")
     public ResponseEntity<Seat> getSeat(@RequestParam String trainCompany, @RequestParam String trainId, @RequestParam String seatId){
-        return client.get()
+        return reliableClient.get()
                 .uri("/trains/{trainId}/seats/{seatId}?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId, seatId)
                 .retrieve()
                 .toEntity(Seat.class)
@@ -153,22 +149,7 @@ public class apiController {
     @PostMapping("/api/confirmQuotes")
     public ResponseEntity<?> createBooking(@RequestBody Quote[] quotes){
         User user  = SecurityFilter.getUser();
-        UUID bookingId = UUID.randomUUID();
-        List<Ticket> tickets = new ArrayList<>();
-        for(Quote q : quotes){
-            tickets.add(new Ticket(q.getTrainCompany(), q.getTrainId(), q.getSeatId(), UUID.randomUUID(), user.getEmail(), bookingId.toString()));
-        }
-        Booking booking = new Booking(UUID.randomUUID(), LocalDateTime.now(), tickets, user.getEmail());
-
-        if(bookingMap.get(user.getEmail()) == null){
-            List<Booking> bookings = new ArrayList<>();
-            bookings.add(booking);
-            bookingMap.put(user.getEmail(), bookings);
-        }else {
-            List<Booking> bookings = bookingMap.get(user);
-            bookings.add(booking);
-            bookingMap.put(user.getEmail(), bookings);
-        }
+        reliable.createBooking(user, quotes);
 
         return ResponseEntity.noContent().build();
     }
@@ -176,7 +157,12 @@ public class apiController {
     @GetMapping("/api/getBookings")
     public ResponseEntity<List<Booking>> getCustomerBookings(){
         List<Booking> bookings = bookingMap.get(SecurityFilter.getUser().getEmail());
-        return ResponseEntity.ok(bookings);
+        if (bookings != null){
+            return ResponseEntity.ok(bookings);
+        }else {
+            return ResponseEntity.noContent().build();
+        }
+
     }
 
     @GetMapping("/api/getAllBookings")
