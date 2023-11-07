@@ -92,29 +92,46 @@ public class apiController {
 
     @GetMapping("/api/getTrain")
     public ResponseEntity<Train> getTrain(@RequestParam String trainCompany, @RequestParam String trainId){
-        return reliableClient.get()
-                .uri("/trains/{trainId}?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId)
+        if(trainCompany.equals("reliabletrains.com")){
+            return reliableClient.get()
+                    .uri("/trains/{trainId}?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId)
+                    .retrieve()
+                    .toEntity(Train.class).block();
+        }else {
+            return unReliableClient.get()
+                    .uri("/trains/{trainId}?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId)
+                    .retrieve()
+                    .toEntity(Train.class)
+                    .onErrorReturn(ResponseEntity.notFound().build())
+                    .block();
+        }
+
+    }
+
+    public String[] times(WebClient client, String trainId){
+        String resp =  client.get()
+                .uri("/trains/{trainId}/times?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId)
                 .retrieve()
-                .toEntity(Train.class).block();
+                .toEntity(String.class)
+                .onErrorReturn(ResponseEntity.ok("{\"_embedded\":{\"stringList\":[]}}"))
+                .block().getBody();
+        try {
+            JsonNode node = mapper.readTree(resp).get("_embedded").get("stringList");
+            return mapper.treeToValue(node, String[].class);
+        } catch (JsonProcessingException e) {
+            return new String[0];
+        }
     }
 
     @GetMapping("/api/getTrainTimes")
     public ResponseEntity<?> getTrainTimes(@RequestParam String trainCompany, @RequestParam String trainId){
-        String resp =  reliableClient.get()
-                .uri("/trains/{trainId}/times?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId)
-                .retrieve()
-                .toEntity(String.class)
-                .block().getBody();
-
-
-        try {
-            JsonNode node = mapper.readTree(resp).get("_embedded").get("stringList");
-            String[] times = mapper.treeToValue(node, String[].class);
-            return ResponseEntity.ok(Arrays.stream(times).sorted());
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
+        String[] times;
+        if(trainCompany.equals("reliabletrains.com")){
+            times = times(reliableClient, trainId);
+        }else {
+            times = times(unReliableClient, trainId);
         }
-
+        return ResponseEntity.ok(times);
     }
 
     @GetMapping("/api/getAvailableSeats")
