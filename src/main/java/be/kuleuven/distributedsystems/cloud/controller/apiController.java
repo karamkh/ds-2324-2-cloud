@@ -30,6 +30,7 @@ public class apiController {
     public WebClient unReliableClient;
     public final ObjectMapper mapper = new ObjectMapper();
     public final TrainRepository reliable = new TrainRepository();
+    public final TrainRepository unReliable = new TrainRepository();
     public Map<String, List<Booking>> bookingMap = new HashMap<>();
 
 
@@ -134,23 +135,33 @@ public class apiController {
         return ResponseEntity.ok(times);
     }
 
-    @GetMapping("/api/getAvailableSeats")
-    public ResponseEntity<?> getAvailableSeats(@RequestParam String trainCompany, @RequestParam String trainId, @RequestParam String time){
-        String resp = reliableClient.get()
+    public Seat[] seats(WebClient client, String trainId, String time){
+        String resp = client.get()
                 .uri("/trains/{trainId}/seats?time={time}&available=true&key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId, time)
                 .retrieve()
                 .toEntity(String.class)
+                .onErrorReturn(ResponseEntity.ok("{\"_embedded\":{\"seats\":[]}}"))
                 .block().getBody();
-
         try{
             JsonNode node = mapper.readTree(resp).get("_embedded").get("seats");
-            Seat[] availableSeats = mapper.treeToValue(node, Seat[].class);
-            reliable.setSeats(Arrays.stream(availableSeats).toList());
-            return ResponseEntity.ok(reliable.sortSeat());
+            return mapper.treeToValue(node, Seat[].class);
         } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
+            return new Seat[0];
         }
 
+    }
+    @GetMapping("/api/getAvailableSeats")
+    public ResponseEntity<?> getAvailableSeats(@RequestParam String trainCompany, @RequestParam String trainId, @RequestParam String time){
+        Seat[] seats;
+        if(trainCompany.equals("reliabletrains.com")){
+            seats = seats(reliableClient, trainId, time);
+            reliable.setSeats(Arrays.stream(seats).toList());
+            return ResponseEntity.ok(reliable.sortSeat());
+        }else {
+            seats = seats(unReliableClient, trainId, time);
+            unReliable.setSeats(Arrays.stream(seats).toList());
+            return ResponseEntity.ok(unReliable.sortSeat());
+        }
     }
 
     @GetMapping("/api/getSeat")
