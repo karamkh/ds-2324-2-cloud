@@ -1,7 +1,10 @@
 package be.kuleuven.distributedsystems.cloud.entities;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.util.UUID;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Ticket {
     private String trainCompany;
     private UUID trainId;

@@ -1,6 +1,8 @@
 package be.kuleuven.distributedsystems.cloud;
 
 import be.kuleuven.distributedsystems.cloud.entities.*;
+import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.FirestoreOptions;
 
 
 import java.time.LocalDateTime;
@@ -10,6 +12,13 @@ public class TrainRepository {
     List<Train> trains  = new ArrayList<>();
     List<Seat> seats = new ArrayList<>();
     Map<String, List<Booking>> bookingMap = new HashMap<>();
+    FirestoreOptions firestoreOptions =
+            FirestoreOptions.getDefaultInstance().toBuilder()
+                    .setProjectId("demo-distributed-systems-kul")
+                    .setCredentials(new FirestoreOptions.EmulatorCredentials())
+                    .setEmulatorHost("localhost:8084")
+                    .build();
+    Firestore db = firestoreOptions.getService();
 
     public TrainRepository(){
     }
@@ -80,8 +89,7 @@ public class TrainRepository {
         return body;
     }
 
-    public void createBooking(User user, Quote[] quotes){
-        UUID bookingId = UUID.randomUUID();
+    public void createBooking(User user, Quote[] quotes, UUID bookingId){
         List<Ticket> tickets = new ArrayList<>();
         for(Quote q : quotes){
             tickets.add(new Ticket(q.getTrainCompany(), q.getTrainId(), q.getSeatId(), UUID.randomUUID(), user.getEmail(), bookingId.toString()));

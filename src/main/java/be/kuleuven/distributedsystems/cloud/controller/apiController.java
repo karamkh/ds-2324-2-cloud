@@ -16,10 +16,12 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.*;
 
 
@@ -132,7 +134,7 @@ public class apiController {
         }else {
             times = times(unReliableClient, trainId);
         }
-        return ResponseEntity.ok(times);
+        return ResponseEntity.ok(Arrays.stream(times).sorted());
     }
 
     public Seat[] seats(WebClient client, String trainId, String time){
@@ -166,20 +168,61 @@ public class apiController {
 
     @GetMapping("/api/getSeat")
     public ResponseEntity<Seat> getSeat(@RequestParam String trainCompany, @RequestParam String trainId, @RequestParam String seatId){
-        return reliableClient.get()
-                .uri("/trains/{trainId}/seats/{seatId}?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId, seatId)
-                .retrieve()
-                .toEntity(Seat.class)
-                .block();
+        if(trainCompany.equals("reliabletrains.com")){
+            return reliableClient.get()
+                    .uri("/trains/{trainId}/seats/{seatId}?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId, seatId)
+                    .retrieve()
+                    .toEntity(Seat.class)
+                    .block();
+        }else {
+            Seat emptySeat = unReliable.getSeats().stream()
+                    .filter(seat -> (Objects.equals(seat.getSeatId().toString(), seatId)) && (Objects.equals(seat.getTrainId().toString(), trainId)))
+                    .findAny().orElse(new Seat());
+            return unReliableClient.get()
+                    .uri("/trains/{trainId}/seats/{seatId}?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId, seatId)
+                    .retrieve()
+                    .toEntity(Seat.class)
+                    .onErrorReturn(ResponseEntity.ok(emptySeat))
+                    .block();
+        }
+
 
     }
 
     @PostMapping("/api/confirmQuotes")
     public ResponseEntity<?> createBooking(@RequestBody Quote[] quotes){
         User user  = SecurityFilter.getUser();
-        reliable.createBooking(user, quotes);
+        UUID bookingId = UUID.randomUUID();
+        List<Ticket> tickets = new ArrayList<>();
+        boolean booked = true;
+        for(Quote q : quotes){
+            Ticket ticket = putTicket(q.getTrainCompany(), q.getTrainId().toString(), q.getSeatId().toString(), user.getEmail(), bookingId.toString());
+            if(ticket.getTicketId() == null){
+                booked = false;
+                break;
+            }else {
+                tickets.add(ticket);
+            }
+        }
+        if(booked){
+            Booking booking = new Booking(UUID.randomUUID(), LocalDateTime.now(), tickets, user.getEmail());
 
-        return ResponseEntity.noContent().build();
+            if(bookingMap.get(user.getEmail()) == null){
+                List<Booking> bookings = new ArrayList<>();
+                bookings.add(booking);
+                bookingMap.put(user.getEmail(), bookings);
+            }else {
+                List<Booking> bookings = bookingMap.get(user.getEmail());
+                bookings.add(booking);
+                bookingMap.put(user.getEmail(), bookings);
+            }
+            return ResponseEntity.noContent().build();
+        }else {
+            for(Ticket ticket : tickets){
+                releaseTicket(ticket);
+            }
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @GetMapping("/api/getBookings")
@@ -226,4 +269,41 @@ public class apiController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
     }
+
+    public void releaseTicket(Ticket ticket){
+
+        if(ticket.getTrainCompany().equals("reliabletrains.com")){
+            System.out.println("---------------");
+            System.out.println("deleted");
+            reliableClient.delete()
+                    .uri("/trains/{trainId}/seats/{seatId}/ticket/{ticketId}?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", ticket.getTrainId(), ticket.getSeatId(), ticket.getTicketId());
+        }else {
+            unReliableClient.delete()
+                    .uri("/trains/{trainId}/seats/{seatId}/ticket/{ticketId}?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", ticket.getTrainId(), ticket.getSeatId(), ticket.getTicketId());
+        }
+    }
+
+    public Ticket putTicket(String trainCompany, String trainId, String seatId, String customerId, String bookingReference){
+        ResponseEntity<Ticket> response;
+
+
+        if(trainCompany.equals("reliabletrains.com")){
+            response = reliableClient.put()
+                    .uri("/trains/{trainId}/seats/{seatId}/ticket?customer={customerId}&bookingReference={bookingReference}&key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId, seatId, customerId, bookingReference)
+                    .retrieve()
+                    .toEntity(Ticket.class)
+                    .onErrorReturn(ResponseEntity.ok(new Ticket(null, null, null, null, null, null)))
+                    .block();
+        }else {
+            response = unReliableClient.put()
+                    .uri("/trains/{trainId}/seats/{seatId}/ticket?customer={customerId}&bookingReference={bookingReference}&key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId, seatId, customerId, bookingReference)
+                    .retrieve()
+                    .toEntity(Ticket.class)
+                    .onErrorReturn(ResponseEntity.ok(new Ticket(null, null, null, null, null, null)))
+                    .block();
+        }
+        assert response != null;
+        return response.getBody();
+    }
+
 }
