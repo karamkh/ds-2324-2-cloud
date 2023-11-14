@@ -271,15 +271,21 @@ public class apiController {
     }
 
     public void releaseTicket(Ticket ticket){
-
+        String trainId = ticket.getTrainId().toString();
+        String seatId = ticket.getSeatId().toString();
+        String ticketId = ticket.getTicketId().toString();
         if(ticket.getTrainCompany().equals("reliabletrains.com")){
-            System.out.println("---------------");
-            System.out.println("deleted");
-            reliableClient.delete()
-                    .uri("/trains/{trainId}/seats/{seatId}/ticket/{ticketId}?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", ticket.getTrainId(), ticket.getSeatId(), ticket.getTicketId());
+            ResponseEntity<?> response = reliableClient.delete()
+                    .uri("/trains/{trainId}/seats/{seatId}/ticket/{ticketId}?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId, seatId, ticketId)
+                    .retrieve()
+                    .toEntity(String.class)
+                    .block();
         }else {
-            unReliableClient.delete()
-                    .uri("/trains/{trainId}/seats/{seatId}/ticket/{ticketId}?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", ticket.getTrainId(), ticket.getSeatId(), ticket.getTicketId());
+            ResponseEntity<?> response = unReliableClient.delete()
+                    .uri("/trains/{trainId}/seats/{seatId}/ticket/{ticketId}?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId, seatId, ticketId)
+                    .retrieve()
+                    .toEntity(String.class)
+                    .block();
         }
     }
 
