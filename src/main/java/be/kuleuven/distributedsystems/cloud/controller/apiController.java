@@ -279,12 +279,14 @@ public class apiController {
                     .uri("/trains/{trainId}/seats/{seatId}/ticket/{ticketId}?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId, seatId, ticketId)
                     .retrieve()
                     .toEntity(String.class)
+                    .onErrorReturn(ResponseEntity.ok().build())
                     .block();
         }else {
             ResponseEntity<?> response = unReliableClient.delete()
                     .uri("/trains/{trainId}/seats/{seatId}/ticket/{ticketId}?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId, seatId, ticketId)
                     .retrieve()
                     .toEntity(String.class)
+                    .onErrorReturn(ResponseEntity.ok().build())
                     .block();
         }
     }
