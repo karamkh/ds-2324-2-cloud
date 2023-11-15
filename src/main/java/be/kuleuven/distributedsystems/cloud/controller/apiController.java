@@ -7,6 +7,8 @@ import be.kuleuven.distributedsystems.cloud.entities.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.api.core.ApiFuture;
+import com.google.cloud.firestore.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -23,6 +25,7 @@ import reactor.core.publisher.Mono;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 
 @Controller
@@ -34,6 +37,13 @@ public class apiController {
     public final TrainRepository reliable = new TrainRepository();
     public final TrainRepository unReliable = new TrainRepository();
     public Map<String, List<Booking>> bookingMap = new HashMap<>();
+    FirestoreOptions firestoreOptions =
+            FirestoreOptions.getDefaultInstance().toBuilder()
+                    .setProjectId("demo-distributed-systems-kul")
+                    .setCredentials(new FirestoreOptions.EmulatorCredentials())
+                    .setEmulatorHost("localhost:8084")
+                    .build();
+    Firestore db = firestoreOptions.getService();
 
 
     @Autowired
@@ -216,6 +226,7 @@ public class apiController {
                 bookings.add(booking);
                 bookingMap.put(user.getEmail(), bookings);
             }
+            addBooking(booking);
             return ResponseEntity.noContent().build();
         }else {
             for(Ticket ticket : tickets){
@@ -227,7 +238,14 @@ public class apiController {
 
     @GetMapping("/api/getBookings")
     public ResponseEntity<List<Booking>> getCustomerBookings(){
-        List<Booking> bookings = bookingMap.get(SecurityFilter.getUser().getEmail());
+        //List<Booking> bookings = bookingMap.get(SecurityFilter.getUser().getEmail());
+        List<Booking> bookings = new ArrayList<>();
+        try{
+            bookings = getAllCustomerBooking(SecurityFilter.getUser().getEmail());
+        } catch (ExecutionException | InterruptedException ignored) {
+
+        }
+
         if (bookings != null){
             return ResponseEntity.ok(bookings);
         }else {
@@ -312,6 +330,50 @@ public class apiController {
         }
         assert response != null;
         return response.getBody();
+    }
+
+    //adds new booking to the cloud
+    public void addBooking(Booking booking){
+        DocumentReference docRef = db.collection(booking.getCustomer()).document(booking.getId().toString());
+        Map<String, Object> data = new HashMap<>();
+        data.put("bookingId", booking.getId().toString());
+        data.put("time", booking.getTime().toString());
+        List<Map<String, Object>> ticketList = new ArrayList<>();
+        for (Ticket ticket : booking.getTickets()) {
+            Map<String, Object> ticketData = new HashMap<>();
+            ticketData.put("trainCompany", ticket.getTrainCompany());
+            ticketData.put("trainId", ticket.getTrainId().toString());
+            ticketData.put("seatId", ticket.getSeatId().toString());
+            ticketData.put("ticketId", ticket.getTicketId().toString());
+            ticketData.put("customer", ticket.getCustomer());
+            ticketData.put("bookingReference", ticket.getBookingReference());
+
+            ticketList.add(ticketData);
+        }
+        data.put("tickets", ticketList);
+        data.put("customer", booking.getCustomer());
+        ApiFuture<WriteResult> result = docRef.set(data);
+    }
+
+    public List<Booking> getAllCustomerBooking(String customer) throws ExecutionException, InterruptedException {
+        List<Booking> bookings = new ArrayList<>();
+        ApiFuture<QuerySnapshot> query = db.collection(customer).get();
+        QuerySnapshot querySnapshot = query.get();
+        List<QueryDocumentSnapshot> documents = querySnapshot.getDocuments();
+        for (QueryDocumentSnapshot document : documents){
+            UUID bookingId = UUID.fromString(Objects.requireNonNull(document.getString("bookingId")));
+            LocalDateTime time = LocalDateTime.parse(document.getString("time"));
+
+            List<Map<String, Object>> ticketList = (List<Map<String, Object>>) document.get("tickets");
+            List<Ticket> tickets = new ArrayList<>();
+            for(Map<String, Object> ticketMap : ticketList){
+                Ticket ticket = new Ticket((String) ticketMap.get("trainCompany"), UUID.fromString((String) ticketMap.get("trainId")), UUID.fromString((String) ticketMap.get("seatId")), UUID.fromString((String) ticketMap.get("ticketId")), (String) ticketMap.get("customer"), (String) ticketMap.get("bookingReference"));
+                tickets.add(ticket);
+            }
+            Booking booking = new Booking(bookingId, time, tickets, customer);
+            bookings.add(booking);
+        }
+        return bookings;
     }
 
 }
