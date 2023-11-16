@@ -254,10 +254,27 @@ public class apiController {
 
     }
 
+    public List<String> getAllUsers(){
+        List<String> users = new ArrayList<>();
+        db.collection("users").listDocuments().forEach(documentReference -> users.add(documentReference.getId()));
+        return users;
+    }
+
     @GetMapping("/api/getAllBookings")
     public ResponseEntity<?> getAllBookings(){
         if (SecurityFilter.getUser().isManager()){
-            return ResponseEntity.ok(bookingMap.values());
+            List<String> users = getAllUsers();
+            List<Booking> bookings = new ArrayList<>();
+            for(String user : users){
+                try {
+                    List<Booking> userBookings = getAllCustomerBooking(user);
+                    bookings.addAll(userBookings);
+                } catch (ExecutionException | InterruptedException ignored) {
+
+                }
+            }
+
+            return ResponseEntity.ok(bookings);
         }else {
             return getCustomerBookings();
         }
@@ -267,18 +284,26 @@ public class apiController {
     public ResponseEntity<?> getBestCustomers(){
         if(SecurityFilter.getUser().isManager()){
             List<String> bestUsers = null;
+            List<String> users = getAllUsers();
             int maxTickets = -1;
-            for (Map.Entry<String, List<Booking>> entry : bookingMap.entrySet()){
+            for (String user : users){
                 int totalTickets = 0;
-                for(Booking booking : entry.getValue()){
+                List<Booking> bookings = new ArrayList<>();
+                try {
+                    bookings = getAllCustomerBooking(user);
+                } catch (ExecutionException | InterruptedException ignored) {
+
+                }
+
+                for(Booking booking : bookings){
                     totalTickets = totalTickets + booking.getTickets().size();
                 }
                 if(totalTickets > maxTickets){
                     bestUsers = new ArrayList<>();
-                    bestUsers.add(entry.getKey());
+                    bestUsers.add(user);
                     maxTickets = totalTickets;
                 } else if (totalTickets == maxTickets){
-                    bestUsers.add(entry.getKey());
+                    bestUsers.add(user);
                 }
             }
             return ResponseEntity.ok(bestUsers);
@@ -334,7 +359,7 @@ public class apiController {
 
     //adds new booking to the cloud
     public void addBooking(Booking booking){
-        DocumentReference docRef = db.collection(booking.getCustomer()).document(booking.getId().toString());
+        DocumentReference docRef = db.collection("users").document(booking.getCustomer()).collection("bookings").document(booking.getId().toString());
         Map<String, Object> data = new HashMap<>();
         data.put("bookingId", booking.getId().toString());
         data.put("time", booking.getTime().toString());
@@ -357,7 +382,7 @@ public class apiController {
 
     public List<Booking> getAllCustomerBooking(String customer) throws ExecutionException, InterruptedException {
         List<Booking> bookings = new ArrayList<>();
-        ApiFuture<QuerySnapshot> query = db.collection(customer).get();
+        ApiFuture<QuerySnapshot> query = db.collection("users").document(customer).collection("bookings").get();
         QuerySnapshot querySnapshot = query.get();
         List<QueryDocumentSnapshot> documents = querySnapshot.getDocuments();
         for (QueryDocumentSnapshot document : documents){
