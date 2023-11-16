@@ -19,7 +19,6 @@ import java.util.Objects;
 @EnableHypermediaSupport(type = EnableHypermediaSupport.HypermediaType.HAL)
 @SpringBootApplication
 public class Application {
-
     @SuppressWarnings("unchecked")
     public static void main(String[] args) throws IOException {
         System.setProperty("server.port", System.getenv().getOrDefault("PORT", "8080"));
