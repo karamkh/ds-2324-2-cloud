@@ -15,7 +15,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 // TODO: delete component when coudrep is made
@@ -74,14 +76,18 @@ public class LocalRepository {
                 .uri("/trains?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE")
                 .retrieve()
                 .toEntity(String.class)
-                .onErrorReturn(ResponseEntity.ok("{\"_embedded\":{\"trains\": []}}"))
+                .onErrorReturn(ResponseEntity.ok(" "))
                 .block()
                 .getBody();
 
 
         try {
             Train[] reliableTrains = parseTrains(resp);
-            Train[] unreliableTrains = parseTrains(resp1);
+            Train[] unreliableTrains = new Train[0];
+            if(!resp1.equals(" ")){
+                unreliableTrains = parseTrains(resp1);
+            }
+
             Train[] trains = concatenateArrays(reliableTrains, unreliableTrains);
             return ResponseEntity.ok(trains);
 
@@ -102,7 +108,7 @@ public class LocalRepository {
                     .uri("/trains/{trainId}?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId)
                     .retrieve()
                     .toEntity(Train.class)
-                    .onErrorReturn(ResponseEntity.notFound().build())
+                    .onErrorReturn(ResponseEntity.ok(new Train(trainCompany, UUID.fromString(trainId), "not found", "not found", "not found")))
                     .block();
         }
 
@@ -170,9 +176,7 @@ public class LocalRepository {
                     .toEntity(Seat.class)
                     .block();
         }else {
-            Seat emptySeat = unReliable.getSeats().stream()
-                    .filter(seat -> (Objects.equals(seat.getSeatId().toString(), seatId)) && (Objects.equals(seat.getTrainId().toString(), trainId)))
-                    .findAny().orElse(new Seat());
+            Seat emptySeat = new Seat(trainCompany, UUID.fromString(trainId), UUID.fromString(seatId), LocalDateTime.now(), null, null, 0);
             return unReliableClient.get()
                     .uri("/trains/{trainId}/seats/{seatId}?key=JViZPgNadspVcHsMbDFrdGg0XXxyiE", trainId, seatId)
                     .retrieve()
@@ -227,7 +231,7 @@ public class LocalRepository {
         }
     }
 
-    // TODO: werkt niet ATM
+
     public ResponseEntity<?> getBestCustomers(){
         if(SecurityFilter.getUser().isManager()){
             List<String> bestUsers = null;
@@ -343,7 +347,7 @@ public class LocalRepository {
 
     // TODO: delete wanneer implemented met firebase
     public void addBooking(Booking booking){
-        DocumentReference docRef = db.collection(booking.getCustomer()).document(booking.getId().toString());
+        DocumentReference docRef = db.collection("users").document(booking.getCustomer()).collection("bookings").document(booking.getId().toString());
         Map<String, Object> data = new HashMap<>();
         data.put("bookingId", booking.getId().toString());
         data.put("time", booking.getTime().toString());
