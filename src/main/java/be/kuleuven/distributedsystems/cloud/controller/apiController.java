@@ -1,8 +1,13 @@
 package be.kuleuven.distributedsystems.cloud.controller;
 
 
+import be.kuleuven.distributedsystems.cloud.auth.SecurityFilter;
 import be.kuleuven.distributedsystems.cloud.domain.LocalRepository;
 import be.kuleuven.distributedsystems.cloud.entities.*;
+import com.google.cloud.pubsub.v1.Publisher;
+import com.google.gson.Gson;
+import com.google.protobuf.ByteString;
+import com.google.pubsub.v1.PubsubMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -12,17 +17,18 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import java.io.IOException;
 import java.util.*;
 
 
 @Controller
 public class apiController {
     private final LocalRepository localRepository;
+    private final Publisher publisher;
 
     @Autowired
-    public apiController(WebClient.Builder webClientBuilder) {
+    public apiController(WebClient.Builder webClientBuilder, Publisher publisher) {
         localRepository = new LocalRepository(webClientBuilder);
+        this.publisher = publisher;
     }
 
     @GetMapping("/api/getTrains")
@@ -52,7 +58,18 @@ public class apiController {
 
     @PostMapping("/api/confirmQuotes")
     public ResponseEntity<?> createBooking(@RequestBody Quote[] quotes){
-        return localRepository.createBooking(quotes);
+        User user = SecurityFilter.getUser();
+        String jsonStringUser = new Gson().toJson(user);
+
+        String jsonStringQuotes = new Gson().toJson(quotes);
+        String jsonString = jsonStringQuotes + "+++" + jsonStringUser;
+
+        ByteString data = ByteString.copyFromUtf8(jsonString);
+        PubsubMessage pubsubMessage = PubsubMessage.newBuilder().setData(data).build();
+        publisher.publish(pubsubMessage);
+
+        // TODO: is dit zelfs nodig ipv het in void functie te verandere?
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/api/getBookings")

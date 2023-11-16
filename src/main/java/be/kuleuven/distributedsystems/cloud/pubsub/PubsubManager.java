@@ -11,17 +11,20 @@ import com.google.pubsub.v1.PushConfig;
 import com.google.pubsub.v1.TopicName;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import org.springframework.context.annotation.Bean;
+import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 
-public class pubsubManager {
+@Component
+public class PubsubManager {
     private FixedTransportChannelProvider channelProvider;
     private NoCredentialsProvider credentialsProvider;
     private String projectId = "distri-405018";
     private String topicId = "bookings";
     private String subscriptionId = "subID";
 
-    private void startEmulator() {
+    public void startEmulator() {
         ManagedChannel emuChannel =  ManagedChannelBuilder.forTarget("localhost:8083").usePlaintext().build();
         try {
 
@@ -30,6 +33,7 @@ public class pubsubManager {
             emuChannel.shutdown();
         }
     }
+    @Bean
     public void createTopic() throws IOException {
         try (TopicAdminClient topicAdminClient = TopicAdminClient
                 .create(TopicAdminSettings.newBuilder()
@@ -41,6 +45,7 @@ public class pubsubManager {
         }
     }
 
+    @Bean
     public Publisher createPublisher() throws IOException {
         TopicName topicName = TopicName.of(projectId, topicId);
         return Publisher
@@ -60,7 +65,7 @@ public class pubsubManager {
         };
     }
 
-    pubsubManager() {
+    public PubsubManager() {
         this.channelProvider = FixedTransportChannelProvider.create(
                 GrpcTransportChannel.create(
                         ManagedChannelBuilder.forTarget("localhost:8083").usePlaintext().build()));

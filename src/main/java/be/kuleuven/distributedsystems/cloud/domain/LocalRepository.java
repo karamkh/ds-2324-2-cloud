@@ -25,7 +25,7 @@ public class LocalRepository {
     private final ObjectMapper mapper = new ObjectMapper();
     private final TrainRepository reliable = new TrainRepository();
     private final TrainRepository unReliable = new TrainRepository();
-    // TODO: delete this :)
+    // TODO: delete this when implemented with firestore
     public Map<String, List<Booking>> bookingMap = new HashMap<>();
 
     public LocalRepository(WebClient.Builder webClientBuilder) {

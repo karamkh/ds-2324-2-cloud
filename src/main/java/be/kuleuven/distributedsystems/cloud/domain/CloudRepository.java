@@ -25,7 +25,7 @@ public class CloudRepository {
                     .build();
     Firestore db = firestoreOptions.getService();
     //adds new booking to the cloud
-    // TODO: change to pub/sub
+    // TODO: change when firestore is implemented instead of bookings
 
     /*
     public ResponseEntity<?> createBooking(@RequestBody Quote[] quotes){
