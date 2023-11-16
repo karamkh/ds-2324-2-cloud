@@ -11,11 +11,13 @@ import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.FirestoreOptions;
 import com.google.cloud.firestore.WriteResult;
 import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import java.time.LocalDateTime;
 import java.util.*;
 
+@Component
 public class CloudRepository {
     FirestoreOptions firestoreOptions =
             FirestoreOptions.getDefaultInstance().toBuilder()
