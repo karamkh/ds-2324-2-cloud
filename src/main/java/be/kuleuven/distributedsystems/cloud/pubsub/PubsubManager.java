@@ -8,6 +8,7 @@ import com.google.cloud.pubsub.v1.SubscriptionAdminClient;
 import com.google.cloud.pubsub.v1.TopicAdminClient;
 import com.google.cloud.pubsub.v1.TopicAdminSettings;
 import com.google.pubsub.v1.PushConfig;
+import com.google.pubsub.v1.SubscriptionName;
 import com.google.pubsub.v1.TopicName;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -20,21 +21,34 @@ import java.io.IOException;
 public class PubsubManager {
     private FixedTransportChannelProvider channelProvider;
     private NoCredentialsProvider credentialsProvider;
-    private String projectId = "distri-405018";
-    private String topicId = "bookings";
-    private String subscriptionId = "subID";
+    private static final String projectId = "demo-distributed-systems-kul";
+    private static final String topicId = "bookings";
 
-    public void startEmulator() {
-        ManagedChannel emuChannel =  ManagedChannelBuilder.forTarget("localhost:8083").usePlaintext().build();
+    public static void startEmulator() {
+        ManagedChannel emulator =  ManagedChannelBuilder.forTarget("localhost:8083").usePlaintext().build();
         try {
-
-
+            createSubscription();
         } finally {
-            emuChannel.shutdown();
+            emulator.shutdown();
         }
     }
-    @Bean
-    public void createTopic() throws IOException {
+
+    private boolean topicExists() {
+        try {
+            TopicAdminClient topicClient = TopicAdminClient.create(
+                    TopicAdminSettings.newBuilder()
+                            .setTransportChannelProvider(channelProvider)
+                            .setCredentialsProvider(NoCredentialsProvider.create())
+                            .build());
+            TopicName topicName = TopicName.of(projectId, topicId);
+            topicClient.getTopic(topicName);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public void createTopic() {
         try (TopicAdminClient topicAdminClient = TopicAdminClient
                 .create(TopicAdminSettings.newBuilder()
                 .setTransportChannelProvider(channelProvider)
@@ -42,27 +56,39 @@ public class PubsubManager {
                 .build())) {
             TopicName topicName = TopicName.of(projectId, topicId);
             topicAdminClient.createTopic(topicName);
+        } catch (IOException e) {
+            // topic already exists;
         }
     }
 
     @Bean
-    public Publisher createPublisher() throws IOException {
+    public Publisher createPublisher() {
+        if (!topicExists()) createTopic();
         TopicName topicName = TopicName.of(projectId, topicId);
-        return Publisher
-                .newBuilder(topicName)
-                .setChannelProvider(channelProvider)
-                .setCredentialsProvider(credentialsProvider)
-                .build();
+        try {
+            return Publisher
+                    .newBuilder(topicName)
+                    .setChannelProvider(channelProvider)
+                    .setCredentialsProvider(credentialsProvider)
+                    .build();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    public void createSubscription() throws IOException {
+    public static void createSubscription() {
         try (SubscriptionAdminClient subscriptionAdminClient = SubscriptionAdminClient.create()) {
             PushConfig pushConfig = PushConfig
                     .newBuilder()
-                    .setPushEndpoint("TODO")
+                    .setPushEndpoint("http://localhost:8080/sub/subscription")
                     .build();
-            subscriptionAdminClient.createSubscription(subscriptionId, topicId, pushConfig, 60);
-        };
+            SubscriptionName subscriptionName = SubscriptionName.of(projectId, "sub-id");
+            TopicName topicName = TopicName.of(projectId, topicId);
+            subscriptionAdminClient.createSubscription(subscriptionName, topicName, pushConfig, 60);
+        } catch (IOException e) {
+            // already exists;
+        }
+        ;
     }
 
     public PubsubManager() {
