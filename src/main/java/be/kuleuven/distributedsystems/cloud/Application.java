@@ -1,5 +1,6 @@
 package be.kuleuven.distributedsystems.cloud;
 
+import be.kuleuven.distributedsystems.cloud.pubsub.PubsubManager;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ApplicationContext;
@@ -24,6 +25,12 @@ public class Application {
         System.setProperty("server.port", System.getenv().getOrDefault("PORT", "8080"));
 
         ApplicationContext context = SpringApplication.run(Application.class, args);
+
+        try{
+            PubsubManager.startEmulator();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         // TODO: (level 2) load this data into Firestore
         String data = new String(new ClassPathResource("data.json").getInputStream().readAllBytes());

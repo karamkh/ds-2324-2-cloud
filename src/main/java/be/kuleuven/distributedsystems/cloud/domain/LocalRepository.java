@@ -10,6 +10,7 @@ import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -17,7 +18,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
-
+// TODO: delete component when coudrep is made
+@Component
 public class LocalRepository {
     private final Firestore db;
     private final WebClient reliableClient;
@@ -181,7 +183,7 @@ public class LocalRepository {
 
 
     }
-    // TODO: werkt niet ATM
+
     public ResponseEntity<List<Booking>> getCustomerBookings(){
         //List<Booking> bookings = bookingMap.get(SecurityFilter.getUser().getEmail());
         List<Booking> bookings = new ArrayList<>();
@@ -277,7 +279,7 @@ public class LocalRepository {
 
 
 
-    // TODO: delete
+    // TODO: delete wanneer implemented met firebase
     public ResponseEntity<?> createBooking(@RequestBody Quote[] quotes){
         User user  = SecurityFilter.getUser();
         UUID bookingId = UUID.randomUUID();
@@ -314,7 +316,7 @@ public class LocalRepository {
         }
     }
 
-    // TODO: delete
+    // TODO: delete wanneer implemented met firebase
     public void addBooking(Booking booking){
         DocumentReference docRef = db.collection(booking.getCustomer()).document(booking.getId().toString());
         Map<String, Object> data = new HashMap<>();
@@ -337,7 +339,7 @@ public class LocalRepository {
         ApiFuture<WriteResult> result = docRef.set(data);
     }
 
-    // TODO: delete
+    // TODO: delete wanneer implemented met firebase
     public Ticket putTicket(String trainCompany, String trainId, String seatId, String customerId, String bookingReference){
         ResponseEntity<Ticket> response;
 
