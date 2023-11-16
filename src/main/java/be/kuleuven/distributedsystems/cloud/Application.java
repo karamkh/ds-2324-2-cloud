@@ -26,11 +26,11 @@ public class Application {
 
         ApplicationContext context = SpringApplication.run(Application.class, args);
 
-        try{
+        /*try{
             PubsubManager.startEmulator();
         } catch (Exception e) {
             throw new RuntimeException(e);
-        }
+        } */
 
         // TODO: (level 2) load this data into Firestore
         String data = new String(new ClassPathResource("data.json").getInputStream().readAllBytes());

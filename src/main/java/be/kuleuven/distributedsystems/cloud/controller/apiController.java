@@ -58,8 +58,8 @@ public class apiController {
 
     @PostMapping("/api/confirmQuotes")
     public ResponseEntity<?> createBooking(@RequestBody Quote[] quotes){
-        // return localRepository.createBooking(quotes);
-        // TODO: dit veranderen zodra pub sup connectie is gemaakt
+        return localRepository.createBooking(quotes);
+        /* TODO: dit veranderen zodra pub sup connectie is gemaakt
         User user = SecurityFilter.getUser();
         String jsonStringUser = new Gson().toJson(user);
 
@@ -71,7 +71,7 @@ public class apiController {
         publisher.publish(pubsubMessage);
 
         // TODO: is dit zelfs nodig ipv het in void functie te verandere?
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.noContent().build(); */
     }
 
     @GetMapping("/api/getBookings")
