@@ -15,14 +15,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 // TODO: delete component when coudrep is made
 @Component
-public class LocalRepository {
+public class Repository {
     private final Firestore db;
     private final WebClient reliableClient;
     private final WebClient unReliableClient;
@@ -32,7 +30,7 @@ public class LocalRepository {
     // TODO: delete this when implemented with firestore
     public Map<String, List<Booking>> bookingMap = new HashMap<>();
 
-    public LocalRepository(WebClient.Builder webClientBuilder) {
+    public Repository(WebClient.Builder webClientBuilder) {
         reliableClient = webClientBuilder
                 .baseUrl("https://reliabletrains.com")
                 .build();
